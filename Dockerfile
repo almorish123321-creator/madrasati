@@ -49,8 +49,10 @@ WORKDIR /app
 COPY . .
 
 # Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts \
-    && composer run-script post-autoload-dump 2>/dev/null || true
+ENV COMPOSER_ALLOW_SUPERUSER=1
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+RUN composer run-script post-autoload-dump 2>/dev/null || true
+RUN rm -rf /root/.composer/cache
 
 # Create required directories and set permissions
 RUN mkdir -p storage/framework/{sessions,views,cache,testing} \
@@ -58,6 +60,7 @@ RUN mkdir -p storage/framework/{sessions,views,cache,testing} \
     bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
+RUN chown -R www-data:www-data /app
 
 # Use production PHP config
 RUN cp /usr/local/etc/php/php.ini-production /usr/local/etc/php/php.ini

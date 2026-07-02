@@ -1,38 +1,47 @@
 #!/bin/bash
 set -e
 
-# Generate APP_KEY if not set
-if [ -z "$APP_KEY" ] || [ "$APP_KEY" = "SomeRandomString" ]; then
-    echo "Generating APP_KEY..."
-    php artisan key:generate --force
+# Check if vendor exists (should be installed during build)
+if [ ! -d "/app/vendor" ]; then
+    echo "ERROR: /app/vendor directory not found. Composer install failed during build."
+    echo "Starting Apache anyway for debugging..."
+    exec apache2-foreground
 fi
 
-# Wait for MySQL to be ready
-if [ "$DB_CONNECTION" = "mysql" ]; then
+# Generate APP_KEY if not set
+if [ -z "$APP_KEY" ] || [ "$APP_KEY" = "SomeRandomString" ] || [ "$APP_KEY" = "" ]; then
+    echo "Generating APP_KEY..."
+    php artisan key:generate --force --ansi || echo "WARNING: Could not generate APP_KEY"
+fi
+
+# Run migrations if MySQL is configured
+if [ "$DB_CONNECTION" = "mysql" ] && [ -n "$DB_HOST" ]; then
     echo "Waiting for MySQL to be ready..."
-    MAX_RETRIES=30
+    MAX_RETRIES=15
     RETRY=0
-    while ! php artisan migrate:status > /dev/null 2>&1; do
-        RETRY=$((RETRY+1))
-        if [ $RETRY -ge $MAX_RETRIES ]; then
-            echo "MySQL not ready after $MAX_RETRIES retries, skipping migrations..."
+    while [ $RETRY -lt $MAX_RETRIES ]; do
+        if php artisan migrate:status > /dev/null 2>&1; then
+            echo "MySQL is ready!"
             break
         fi
-        echo "MySQL not ready yet, retrying ($RETRY/$MAX_RETRIES)..."
-        sleep 3
+        RETRY=$((RETRY+1))
+        echo "Waiting for MySQL... ($RETRY/$MAX_RETRIES)"
+        sleep 2
     done
 
-    # Run migrations
-    echo "Running database migrations..."
-    php artisan migrate --force
+    if [ $RETRY -lt $MAX_RETRIES ]; then
+        echo "Running database migrations..."
+        php artisan migrate --force || echo "WARNING: Migrations failed"
+    else
+        echo "WARNING: MySQL not available, skipping migrations"
+    fi
 fi
 
 # Cache configs for production
 echo "Caching configuration..."
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+php artisan config:cache 2>/dev/null || true
+php artisan route:cache 2>/dev/null || true
+php artisan view:cache 2>/dev/null || true
 
-# Start Apache
-echo "Starting Apache..."
+echo "Starting Apache on port 8080..."
 exec apache2-foreground
