@@ -61,3 +61,11 @@ RUN mkdir -p storage/framework/{sessions,views,cache,testing} \
 
 # Use production PHP config
 RUN cp /usr/local/etc/php/php.ini-production /usr/local/etc/php/php.ini
+
+# Copy entrypoint script
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+EXPOSE 8080
+
+CMD ["/usr/local/bin/entrypoint.sh"]
