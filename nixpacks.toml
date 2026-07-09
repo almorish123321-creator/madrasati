@@ -1,6 +1,0 @@
-[phases.setup]
-nixPkgs = ["php81", "php81Packages.composer"]
-
-[variables]
-PHP_VERSION = "8.1"
-NIXPACKS_PHP_VERSION = "8.1"
