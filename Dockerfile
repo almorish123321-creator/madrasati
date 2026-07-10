@@ -26,16 +26,13 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     bcmath \
     opcache
 
-# Fix Apache MPM for PHP
-RUN a2dismod mpm_event || true \
-    && a2enmod mpm_prefork rewrite
-
-# Set Apache document root
+# Set Apache document root and configure for Laravel
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
-    && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf \
-    && sed -ri -e 's!<VirtualHost \*:80>!<VirtualHost *:8080>!g' /etc/apache2/sites-available/000-default.conf \
-    && sed -ri -e 's!Listen 80!Listen 8080!g' /etc/apache2/ports.conf
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf \
+    && sed -ri -e 's!Listen 80!Listen 8080!g' /etc/apache2/ports.conf \
+    && a2enmod rewrite headers
+
+COPY 000-default.conf /etc/apache2/sites-available/000-default.conf
 
 # Copy application
 COPY . /var/www/html
@@ -45,8 +42,11 @@ WORKDIR /var/www/html
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
     && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
 
-# Permissions
-RUN chown -R www-data:www-data /var/www/html \
+# Permissions and create required directories
+RUN mkdir -p /var/www/html/storage/framework/{sessions,views,cache} \
+    /var/www/html/storage/logs \
+    /var/www/html/bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html \
     && chmod -R 775 /var/www/html/storage \
     && chmod -R 775 /var/www/html/bootstrap/cache
 
